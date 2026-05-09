@@ -1,0 +1,1 @@
+# CogniCore gateway package.

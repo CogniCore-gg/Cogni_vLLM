@@ -1,0 +1,29 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: gateway
+    static_configs:
+      - targets: ["gateway:8101"]
+    metrics_path: /metrics
+
+  - job_name: qwen-main-vllm
+    static_configs:
+      - targets: ["qwen-main-vllm:8000"]
+    metrics_path: /metrics
+
+  - job_name: coder-vllm
+    static_configs:
+      - targets: ["coder-vllm:8000"]
+    metrics_path: /metrics
+
+  - job_name: deepseek-vllm
+    static_configs:
+      - targets: ["deepseek-vllm:8000"]
+    metrics_path: /metrics
+
+  - job_name: bge-large-vllm
+    static_configs:
+      - targets: ["bge-large-vllm:8000"]
+    metrics_path: /metrics

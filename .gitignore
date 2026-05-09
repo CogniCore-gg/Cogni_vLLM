@@ -1,0 +1,34 @@
+# Secrets and local env
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# Hugging Face / model cache (large; do not commit)
+hf_cache/
+**/.cache/huggingface/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+*.so
+.venv/
+venv/
+ENV/
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Docker / tooling
+*.log
+/tmp/cognicore_*.json
+
+# Prometheus / local data if bound
+prometheus-data/

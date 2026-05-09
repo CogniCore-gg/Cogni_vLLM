@@ -1,0 +1,123 @@
+# Primary stack: AMD ROCm + vLLM OpenAI server image.
+# For NVIDIA CUDA, use: docker compose -f docker-compose.cuda.yml ...
+name: cognicore-vllm
+
+x-vllm-base: &vllm-base
+  image: vllm/vllm-openai:latest-rocm
+  restart: unless-stopped
+  env_file:
+    - .env
+  environment:
+    HF_TOKEN: ${HF_TOKEN}
+    HF_HOME: ${HF_HOME}
+    HIP_VISIBLE_DEVICES: ${HIP_VISIBLE_DEVICES}
+    HSA_OVERRIDE_GFX_VERSION: ${HSA_OVERRIDE_GFX_VERSION}
+  devices:
+    - /dev/kfd
+    - /dev/dri
+  group_add:
+    - video
+    - render
+  security_opt:
+    - seccomp=unconfined
+  ipc: host
+  shm_size: "16g"
+  volumes:
+    - ./hf_cache:/root/.cache/huggingface
+  healthcheck:
+    test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health').read()\""]
+    interval: 30s
+    timeout: 10s
+    retries: 60
+    start_period: 1200s
+
+services:
+  gateway:
+    build:
+      context: ./gateway
+    env_file:
+      - .env
+    environment:
+      # Must match container listen port (see gateway Dockerfile / uvicorn --port 8101).
+      GATEWAY_PORT: "8101"
+      GATEWAY_TIMEOUT_SECONDS: ${GATEWAY_TIMEOUT_SECONDS}
+      GATEWAY_API_KEY: ${GATEWAY_API_KEY}
+      GATEWAY_LOG_LEVEL: ${GATEWAY_LOG_LEVEL}
+      GATEWAY_RATE_LIMIT_RPM: ${GATEWAY_RATE_LIMIT_RPM:-120}
+      GATEWAY_TRUST_X_FORWARDED_FOR: ${GATEWAY_TRUST_X_FORWARDED_FOR:-false}
+      GATEWAY_CORS_ALLOWED_ORIGINS: ${GATEWAY_CORS_ALLOWED_ORIGINS:-}
+      QWEN_MAIN_ALIAS: ${QWEN_MAIN_ALIAS}
+      CODER_ALIAS: ${CODER_ALIAS}
+      DEEPSEEK_ALIAS: ${DEEPSEEK_ALIAS}
+      BGE_ALIAS: ${BGE_ALIAS}
+      QWEN_MAIN_MODEL: ${QWEN_MAIN_MODEL}
+      CODER_MODEL: ${CODER_MODEL}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL}
+      BGE_MODEL: ${BGE_MODEL}
+    ports:
+      # Public OpenAI-compatible API (vLLM access): always http://<host>:8101/v1
+      - "8101:8101"
+    depends_on:
+      - qwen-main-vllm
+      - coder-vllm
+      - deepseek-vllm
+      - bge-large-vllm
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8101/health').read()\""]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  qwen-main-vllm:
+    <<: *vllm-base
+    command: >
+      vllm serve ${QWEN_MAIN_MODEL}
+      --host 0.0.0.0
+      --port 8000
+      --served-model-name ${QWEN_MAIN_ALIAS}
+      --tensor-parallel-size ${QWEN_MAIN_TP}
+      --max-model-len ${QWEN_MAIN_MAX_MODEL_LEN}
+      --gpu-memory-utilization ${QWEN_MAIN_GPU_MEMORY_UTILIZATION}
+      --dtype ${QWEN_MAIN_DTYPE}
+      --trust-remote-code
+
+  coder-vllm:
+    <<: *vllm-base
+    command: >
+      vllm serve ${CODER_MODEL}
+      --host 0.0.0.0
+      --port 8000
+      --served-model-name ${CODER_ALIAS}
+      --tensor-parallel-size ${CODER_TP}
+      --max-model-len ${CODER_MAX_MODEL_LEN}
+      --gpu-memory-utilization ${CODER_GPU_MEMORY_UTILIZATION}
+      --dtype ${CODER_DTYPE}
+      --trust-remote-code
+
+  deepseek-vllm:
+    <<: *vllm-base
+    command: >
+      vllm serve ${DEEPSEEK_MODEL}
+      --host 0.0.0.0
+      --port 8000
+      --served-model-name ${DEEPSEEK_ALIAS}
+      --tensor-parallel-size ${DEEPSEEK_TP}
+      --max-model-len ${DEEPSEEK_MAX_MODEL_LEN}
+      --gpu-memory-utilization ${DEEPSEEK_GPU_MEMORY_UTILIZATION}
+      --dtype ${DEEPSEEK_DTYPE}
+      --trust-remote-code
+
+  bge-large-vllm:
+    <<: *vllm-base
+    command: >
+      vllm serve ${BGE_MODEL}
+      --host 0.0.0.0
+      --port 8000
+      --served-model-name ${BGE_ALIAS}
+      --task embed
+      --tensor-parallel-size ${BGE_TP}
+      --max-model-len ${BGE_MAX_MODEL_LEN}
+      --gpu-memory-utilization ${BGE_GPU_MEMORY_UTILIZATION}
+      --dtype ${BGE_DTYPE}
+      --trust-remote-code
