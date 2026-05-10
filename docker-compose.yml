@@ -1,17 +1,23 @@
 # Primary stack: AMD ROCm + vLLM OpenAI server image.
 # For NVIDIA CUDA, use: docker compose -f docker-compose.cuda.yml ...
+#
+# Host ports (localhost):
+#   8101 — gateway (unified /v1)
+#   8201 — qwen-main-vllm (direct OpenAI API on container :8000)
+#   8202–8204 — coder / deepseek / bge (only with --profile full-stack)
+#
+# Default (no profile): gateway + **qwen-main only** — enough for CogniScribe summarization via alias qwen-main.
+# All four backends: docker compose --profile full-stack up -d
+#
+# HIP: use QWEN_MAIN_HIP_VISIBLE_DEVICES etc. in .env. Listing non-existent GPU indices (e.g. 0–3 on a 1-GPU
+# host) makes ROCm report **No HIP GPUs** and the gateway returns 502 "Upstream model service unavailable".
 name: cognicore-vllm
 
 x-vllm-base: &vllm-base
-  image: vllm/vllm-openai:latest-rocm
+  image: vllm/vllm-openai-rocm:latest
   restart: unless-stopped
   env_file:
     - .env
-  environment:
-    HF_TOKEN: ${HF_TOKEN}
-    HF_HOME: ${HF_HOME}
-    HIP_VISIBLE_DEVICES: ${HIP_VISIBLE_DEVICES}
-    HSA_OVERRIDE_GFX_VERSION: ${HSA_OVERRIDE_GFX_VERSION}
   devices:
     - /dev/kfd
     - /dev/dri
@@ -25,7 +31,11 @@ x-vllm-base: &vllm-base
   volumes:
     - ./hf_cache:/root/.cache/huggingface
   healthcheck:
-    test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health').read()\""]
+    test:
+      [
+        "CMD-SHELL",
+        'python -c "import urllib.request; urllib.request.urlopen(''http://127.0.0.1:8000/health'').read()"',
+      ]
     interval: 30s
     timeout: 10s
     retries: 60
@@ -58,21 +68,33 @@ services:
       # Public OpenAI-compatible API (vLLM access): always http://<host>:8101/v1
       - "8101:8101"
     depends_on:
-      - qwen-main-vllm
-      - coder-vllm
-      - deepseek-vllm
-      - bge-large-vllm
+      qwen-main-vllm:
+        condition: service_started
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8101/health').read()\""]
+      test:
+        [
+          "CMD-SHELL",
+          'python -c "import urllib.request; urllib.request.urlopen(''http://127.0.0.1:8101/health'').read()"',
+        ]
       interval: 15s
       timeout: 5s
       retries: 10
 
   qwen-main-vllm:
     <<: *vllm-base
+    # ROCm-in-Docker: without this, some hosts show torch.cuda.is_available()==False / "No HIP GPUs"
+    # in the engine subprocess and the gateway gets 502 (connection refused to :8000).
+    privileged: true
+    ports:
+      - "8201:8000"
+    environment:
+      HF_TOKEN: ${HF_TOKEN}
+      HF_HOME: ${HF_HOME}
+      HIP_VISIBLE_DEVICES: ${QWEN_MAIN_HIP_VISIBLE_DEVICES:-0}
+    # Image ENTRYPOINT is already `vllm serve`; only pass model id + flags.
     command: >
-      vllm serve ${QWEN_MAIN_MODEL}
+      ${QWEN_MAIN_MODEL}
       --host 0.0.0.0
       --port 8000
       --served-model-name ${QWEN_MAIN_ALIAS}
@@ -81,11 +103,20 @@ services:
       --gpu-memory-utilization ${QWEN_MAIN_GPU_MEMORY_UTILIZATION}
       --dtype ${QWEN_MAIN_DTYPE}
       --trust-remote-code
+      --enforce-eager
 
   coder-vllm:
     <<: *vllm-base
+    profiles:
+      - full-stack
+    ports:
+      - "8202:8000"
+    environment:
+      HF_TOKEN: ${HF_TOKEN}
+      HF_HOME: ${HF_HOME}
+      HIP_VISIBLE_DEVICES: ${CODER_HIP_VISIBLE_DEVICES:-1}
     command: >
-      vllm serve ${CODER_MODEL}
+      ${CODER_MODEL}
       --host 0.0.0.0
       --port 8000
       --served-model-name ${CODER_ALIAS}
@@ -97,8 +128,16 @@ services:
 
   deepseek-vllm:
     <<: *vllm-base
+    profiles:
+      - full-stack
+    ports:
+      - "8203:8000"
+    environment:
+      HF_TOKEN: ${HF_TOKEN}
+      HF_HOME: ${HF_HOME}
+      HIP_VISIBLE_DEVICES: ${DEEPSEEK_HIP_VISIBLE_DEVICES:-2}
     command: >
-      vllm serve ${DEEPSEEK_MODEL}
+      ${DEEPSEEK_MODEL}
       --host 0.0.0.0
       --port 8000
       --served-model-name ${DEEPSEEK_ALIAS}
@@ -110,12 +149,19 @@ services:
 
   bge-large-vllm:
     <<: *vllm-base
+    profiles:
+      - full-stack
+    ports:
+      - "8204:8000"
+    environment:
+      HF_TOKEN: ${HF_TOKEN}
+      HF_HOME: ${HF_HOME}
+      HIP_VISIBLE_DEVICES: ${BGE_HIP_VISIBLE_DEVICES:-3}
     command: >
-      vllm serve ${BGE_MODEL}
+      ${BGE_MODEL}
       --host 0.0.0.0
       --port 8000
       --served-model-name ${BGE_ALIAS}
-      --task embed
       --tensor-parallel-size ${BGE_TP}
       --max-model-len ${BGE_MAX_MODEL_LEN}
       --gpu-memory-utilization ${BGE_GPU_MEMORY_UTILIZATION}

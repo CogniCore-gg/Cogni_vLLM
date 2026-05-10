@@ -17,7 +17,7 @@ Even with MI300X, do not assume all giant models can run concurrently at high co
 
 1. `cp .env.example .env`
 2. set `HF_TOKEN` and ROCm-specific env vars
-3. optionally set `HIP_VISIBLE_DEVICES` and `HSA_OVERRIDE_GFX_VERSION`
+3. optionally set `HIP_VISIBLE_DEVICES`; only set `HSA_OVERRIDE_GFX_VERSION` when you have a **non-empty** value (never `HSA_OVERRIDE_GFX_VERSION=`)
 4. `./scripts/start.sh` or `./scripts/start_rocm.sh` or `docker compose --env-file .env up -d --build`
 5. `./scripts/healthcheck.sh`
 

@@ -92,6 +92,7 @@ See detailed examples in `docs/API_USAGE.md`.
 - CUDA OOM -> lower `*_MAX_MODEL_LEN`, reduce `*_GPU_MEMORY_UTILIZATION`, increase TP.
 - ROCm device missing -> check `/dev/kfd`, `/dev/dri`, user group permissions.
 - 404 model errors -> verify alias in request body matches `/v1/models`.
+- 502 **Upstream model service unavailable** -> gateway cannot reach the vLLM container (crashed, still starting, or wrong Docker network). Check `docker logs <backend>-vllm`; common ROCm cause: `HIP_VISIBLE_DEVICES` lists GPUs that do not exist → **No HIP GPUs** in logs — fix `QWEN_MAIN_HIP_VISIBLE_DEVICES` etc. in `.env` (default compose runs **qwen-main only**; use `--profile full-stack` for all four backends).
 - Gated model failures -> confirm `HF_TOKEN` has access for each model.
 
 ## Production Deployment Notes

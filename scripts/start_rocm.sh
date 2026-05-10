@@ -33,6 +33,8 @@ if [[ ! -e /dev/kfd || ! -e /dev/dri ]]; then
   exit 1
 fi
 
-echo "Starting stack (ROCm — default docker-compose.yml)..."
+echo "Starting stack (ROCm — gateway + qwen-main by default; avoids 1-GPU HIP index bugs)."
+echo "Optional all four vLLM backends: docker compose --env-file .env --profile full-stack up -d --build"
+echo "If you changed profiles or still see stale backends: docker compose --env-file .env down --remove-orphans"
 docker compose --env-file .env up -d --build
 echo "Stack started. Run ./scripts/healthcheck.sh to verify readiness."

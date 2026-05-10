@@ -1,4 +1,11 @@
+# Prometheus must share the vLLM stack network so scrape targets like `gateway:8101` resolve.
+# Main stack: `name: cognicore-vllm` → default network `cognicore-vllm_default`.
 name: cognicore-vllm-monitoring
+
+networks:
+  cognicore-vllm:
+    name: cognicore-vllm_default
+    external: true
 
 services:
   prometheus:
@@ -11,3 +18,5 @@ services:
       - ./configs/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     ports:
       - "9090:9090"
+    networks:
+      - cognicore-vllm

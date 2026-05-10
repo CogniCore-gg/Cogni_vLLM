@@ -13,6 +13,15 @@
 - Confirm user membership in `video` and `render`
 - Check ROCm driver installation on host
 
+## No HIP GPUs / gateway 502 upstream
+
+- vLLM logs `RuntimeError: No HIP GPUs are available` when `HIP_VISIBLE_DEVICES` (set per backend as `QWEN_MAIN_HIP_VISIBLE_DEVICES`, etc.) references **indices that do not exist** on the host (e.g. `0,1,2,3` when only GPU 0 exists).
+- Fix: set each backend’s variable to a valid index (`rocm-smi -L`). Single-GPU hosts should use `0` for **qwen-main** at minimum.
+- Default `docker-compose.yml` starts **only qwen-main**; optional backends need `--profile full-stack`.
+- After switching profiles, run `docker compose down --remove-orphans` so old vLLM containers stop fighting for the GPU.
+- If `rocminfo` inside the container reports **`HSA_STATUS_ERROR_OUT_OF_RESOURCES`**, first check you did **not** set **`HSA_OVERRIDE_GFX_VERSION=`** (empty) in `.env`. An empty override breaks HSA initialization; remove the variable entirely unless you set a real value (see `.env.example`). If the variable is unset and the error persists, the host ROCm runtime may be exhausted (too many GPU processes, driver glitch): stop other GPU workloads / containers, then retry; reboot the host if it persists.
+- Gateway **502** / `ConnectError` to `qwen-main-vllm:8000` means the vLLM process is **not listening** (usually crash-loop). Check `docker logs cognicore-vllm-qwen-main-vllm-1`. `compose.yml` sets **`privileged: true`** on qwen-main as a common ROCm workaround; remove only if your security policy forbids it.
+
 ## Hugging Face Gated Model Access
 
 - Ensure `HF_TOKEN` is set in `.env`
