@@ -5,6 +5,20 @@ It exposes one OpenAI-compatible API endpoint on `http://localhost:8101/v1` and 
 
 **Default deployment is AMD ROCm** (`docker-compose.yml`). NVIDIA CUDA is supported via `docker-compose.cuda.yml`.
 
+## AMD Development Hackathon reminder
+
+The CogniCore stack is split across **three codebases** on GitHub:
+
+| Repo | URL |
+|------|-----|
+| **Cogni_vLLM** (this repo) | [github.com/CogniCore-gg/Cogni_vLLM](https://github.com/CogniCore-gg/Cogni_vLLM) |
+| **cogniOPS** | [github.com/CogniCore-gg/cogniOPS](https://github.com/CogniCore-gg/cogniOPS) |
+| **cogniScribe** | [github.com/CogniCore-gg/cogniScribe](https://github.com/CogniCore-gg/cogniScribe) |
+
+- **Cogni_vLLM** — OpenAI-compatible inference gateway and vLLM backends (ROCm default, CUDA optional).
+- **cogniOPS** — Governed AI engineering platform (orchestration, agents, governance, integrations).
+- **cogniScribe** — Meeting intelligence (uploads, transcription, extraction via the same vLLM-style API).
+
 ## Architecture Overview
 
 - One gateway service (`FastAPI`) on port `8101`
